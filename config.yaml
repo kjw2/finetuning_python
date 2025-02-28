@@ -1,0 +1,37 @@
+# 모델 설정
+model:
+  name: "bert-base-uncased"
+  task: "text-classification"
+  output_dir: "./models/fine_tuned_model"
+  cache_dir: "./models/pretrained"
+
+# 데이터 설정
+data:
+  dataset_name: "imdb"
+  dataset_cache_dir: "./datasets"
+  text_column: "text"
+  label_column: "label"
+  max_length: 1024
+  batch_size: 16
+
+# 학습 설정
+training:
+  epochs: 3
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  warmup_steps: 0
+  max_grad_norm: 1.0
+  cuda_cleanup_freq: 100
+
+# 메모리 관리 설정
+memory:
+  gradient_accumulation_steps: 4  # 그래디언트 누적 스텝 수
+  max_gpu_memory_usage: 0.95      # 최대 GPU 메모리 사용률 (0~1)
+  empty_cache_freq: 50            # CUDA 캐시 비우기 빈도 (배치 단위)
+  mixed_precision: true           # 혼합 정밀도 학습 사용 여부
+  optimize_memory_usage: true     # 메모리 최적화 사용 여부
+
+# 로깅 설정
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s" 
