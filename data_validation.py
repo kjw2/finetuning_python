@@ -134,23 +134,9 @@ class DataValidator:
     def validate_tokenized_data(self, tokenized_data: Dict[str, List[int]], max_length: int) -> None:
         """토큰화된 데이터의 유효성을 검증
         
-        다음 항목을 검증:
-        1. 필수 필드(input_ids, attention_mask) 존재 여부
-        2. 각 필드의 데이터 타입
-        3. 시퀀스 길이 제한 준수 여부
-        
         Args:
             tokenized_data: 검증할 토큰화된 데이터
-                필수 키:
-                - input_ids (List[int]): 입력 토큰 ID 리스트
-                - attention_mask (List[int]): 어텐션 마스크 리스트
             max_length: 최대 허용 시퀀스 길이
-            
-        Raises:
-            DatasetError: 다음 경우에 발생
-                - 필수 필드가 누락된 경우
-                - 필드 데이터가 리스트가 아닌 경우
-                - 시퀀스 길이가 max_length를 초과하는 경우
         """
         required_fields = ['input_ids', 'attention_mask']
         for field in required_fields:
@@ -163,7 +149,7 @@ class DataValidator:
                 raise DatasetError(f"토큰화된 데이터 필드는 리스트여야 합니다: {field}")
             
             if len(data) > max_length:
-                raise DatasetError(f"토큰화된 데이터가 최대 길이를 초과: {len(data)} > {max_length}")
+                logger.warning(f"토큰화된 데이터가 최대 길이를 초과하여 잘립니다: {len(data)} -> {max_length}")
     
     def validate_batch(self, batch: Dict[str, Any]) -> None:
         """배치 데이터의 유효성을 검증

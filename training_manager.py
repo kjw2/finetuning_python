@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedModel, get_linear_schedule_with_warmup, AdamW
 from tqdm import tqdm
 from memory_utils import MemoryManager
+from exceptions import FineTuningError
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class TrainingManager:
         self.device = device
         
         self.epochs = config['epochs']
-        self.learning_rate = config['learning_rate']
+        self.learning_rate = float(config['learning_rate'])
         self.weight_decay = config['weight_decay']
         self.warmup_steps = config['warmup_steps']
         self.max_grad_norm = config['max_grad_norm']
@@ -60,8 +61,9 @@ class TrainingManager:
                     raise
                     
                 except Exception as e:
-                    ErrorHandler.handle_training_error(e, epoch + 1)
-                    raise
+                    error_msg = f"에포크 {epoch + 1} 학습 중 오류 발생: {str(e)}"
+                    logger.error(error_msg)
+                    raise FineTuningError(error_msg) from e
         
         except Exception as e:
             error_msg = f"학습 중 치명적인 오류 발생: {str(e)}"
@@ -92,15 +94,26 @@ class TrainingManager:
             with torch.no_grad():
                 for batch in tqdm(eval_dataloader, desc="평가 중"):
                     try:
+                        if not batch:
+                            logger.warning("빈 배치를 건너뜁니다.")
+                            continue
+                            
                         metrics = self._evaluate_batch(batch)
                         correct += metrics['correct']
                         total += metrics['total']
                         
                     except Exception as e:
-                        ErrorHandler.handle_batch_error(e, "평가")
+                        error_msg = f"배치 평가 중 오류 발생: {str(e)}"
+                        logger.error(error_msg)
+                        continue
             
+            if total == 0:
+                error_msg = "평가할 데이터가 없습니다. 데이터셋과 데이터 로더를 확인해주세요."
+                logger.error(error_msg)
+                raise FineTuningError(error_msg)
+                
             accuracy = correct / total
-            logger.info(f"평가 완료 - 정확도: {accuracy:.4f}")
+            logger.info(f"평가 완료 - 정확도: {accuracy:.4f} (맞은 개수: {correct}, 전체 개수: {total})")
             return accuracy
             
         except Exception as e:
@@ -153,7 +166,8 @@ class TrainingManager:
                 })
                 
             except Exception as e:
-                ErrorHandler.handle_batch_error(e, batch_idx)
+                error_msg = f"배치 {batch_idx} 처리 중 오류 발생: {str(e)}"
+                logger.error(error_msg)
                 continue
         
         avg_epoch_loss = epoch_loss / len(train_dataloader)
@@ -194,17 +208,25 @@ class TrainingManager:
         """배치 평가
         
         Args:
-            batch: 평가 배치
+            batch: 평가할 배치 데이터
             
         Returns:
-            Dict[str, int]: 평가 지표 (정답 수, 전체 수)
+            Dict[str, int]: 평가 메트릭 (correct: 맞은 개수, total: 전체 개수)
         """
+        # 데이터를 GPU로 이동
         batch = {k: v.to(self.device) for k, v in batch.items()}
+        
+        # 예측 수행
         outputs = self.model(**batch)
         predictions = torch.argmax(outputs.logits, dim=-1)
-        labels = batch["labels"]
         
+        # 정확도 계산
+        labels = batch['labels']
         correct = (predictions == labels).sum().item()
         total = labels.size(0)
         
+        if total == 0:
+            logger.warning("현재 배치의 크기가 0입니다.")
+            return {'correct': 0, 'total': 0}
+            
         return {'correct': correct, 'total': total} 

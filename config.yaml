@@ -11,13 +11,13 @@ data:
   dataset_cache_dir: "./datasets"
   text_column: "text"
   label_column: "label"
-  max_length: 1024
+  max_length: 512
   batch_size: 16
 
 # 학습 설정
 training:
   epochs: 3
-  learning_rate: 2e-5
+  learning_rate: 5e-5
   weight_decay: 0.01
   warmup_steps: 0
   max_grad_norm: 1.0

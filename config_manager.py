@@ -227,4 +227,4 @@ class ConfigManager:
         if hasattr(args, 'epochs') and args.epochs is not None:
             self.config['training']['epochs'] = args.epochs
         if hasattr(args, 'learning_rate') and args.learning_rate is not None:
-            self.config['training']['learning_rate'] = args.learning_rate 
+            self.config['training']['learning_rate'] = float(args.learning_rate) 

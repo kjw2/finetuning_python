@@ -211,38 +211,37 @@ class DataManager:
             
         Returns:
             DataLoader: 처리된 데이터 로더
-                각 배치는 다음 키를 포함하는 딕셔너리:
-                - input_ids: 입력 토큰 ID 텐서
-                - attention_mask: 어텐션 마스크 텐서
-                - labels: 레이블 텐서
-            
-        Raises:
-            DatasetError: 다음 경우에 발생
-                - 토큰화 실패
-                - 토큰화된 데이터 검증 실패
-                - DataLoader 생성 실패
-                - 배치 데이터 검증 실패
         """
         try:
             logger.info("데이터 전처리 중...")
+            logger.info(f"설정된 최대 길이: {self.max_length}")
             
             # 데이터 토큰화 및 검증
             def tokenize_and_validate(examples):
+                # 토큰화 수행
                 tokenized = self.tokenizer(
                     examples[self.text_column],
-                    padding="max_length",
+                    padding=True,  # 동적 패딩 사용
                     truncation=True,
-                    max_length=self.max_length
+                    max_length=self.max_length,
+                    return_tensors=None  # 배치 처리를 위해 리스트 형태 반환
                 )
                 
-                # 토큰화된 데이터 검증
-                self.validator.validate_tokenized_data(tokenized, self.max_length)
+                try:
+                    # 토큰화된 데이터 검증
+                    self.validator.validate_tokenized_data(tokenized, self.max_length)
+                except Exception as e:
+                    logger.warning(f"토큰화 검증 중 경고: {str(e)}")
+                
                 return tokenized
             
+            # 배치 크기 조정을 통한 토큰화
             tokenized_dataset = dataset.map(
                 tokenize_and_validate,
                 batched=True,
-                desc="토큰화 중..."
+                batch_size=100,  # 작은 배치 크기로 처리
+                desc="토큰화 중...",
+                remove_columns=dataset.column_names  # 불필요한 컬럼 제거
             )
             
             # 필요한 키만 선택

@@ -27,11 +27,18 @@ def process_dataset(config_manager):
         cache_dir=model_config['cache_dir']
     )
 
+    def preprocess_function(examples):
+        return tokenizer(
+            examples[data_config['text_column']],
+            padding='max_length',
+            truncation=True,
+            max_length=data_config['max_length'],
+            return_tensors='pt'
+        )
+
     logger.info("데이터셋 전처리 중...")
     return dataset.map(
-        lambda x: tokenizer(
-            x[data_config['text_column']],
-            truncation=True,
-            max_length=data_config['max_length']
-        )
+        preprocess_function,
+        batched=True,
+        remove_columns=dataset["train"].column_names
     )

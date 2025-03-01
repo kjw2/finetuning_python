@@ -4,7 +4,7 @@
 """
 
 class FineTuningError(Exception):
-    """파인튜닝 과정에서 발생하는 기본 예외 클래스"""
+    """파인튜닝 중 발생하는 기본 예외 클래스"""
     pass
 
 class DatasetError(FineTuningError):
