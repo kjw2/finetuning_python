@@ -236,12 +236,15 @@ class DataManager:
                 return tokenized
             
             # 배치 크기 조정을 통한 토큰화
+            # 레이블 컬럼을 제외한 컬럼만 제거
+            columns_to_remove = [col for col in dataset.column_names if col != self.label_column]
+            
             tokenized_dataset = dataset.map(
                 tokenize_and_validate,
                 batched=True,
                 batch_size=100,  # 작은 배치 크기로 처리
                 desc="토큰화 중...",
-                remove_columns=dataset.column_names  # 불필요한 컬럼 제거
+                remove_columns=columns_to_remove  # 레이블 컬럼은 유지
             )
             
             # 필요한 키만 선택

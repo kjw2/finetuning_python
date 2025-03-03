@@ -1,14 +1,14 @@
 # 모델 설정
 model:
-  name: "bert-base-uncased"
+  name: "google-bert/bert-base-uncased"
   task: "text-classification"
   output_dir: "./models/fine_tuned_model"
   cache_dir: "./models/pretrained"
 
 # 데이터 설정
 data:
-  dataset_name: "imdb"
-  dataset_cache_dir: "./datasets"
+  dataset_name: "stanfordnlp/imdb"
+  dataset_cache_dir: "./datasets/temp_cache"
   text_column: "text"
   label_column: "label"
   max_length: 512

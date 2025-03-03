@@ -28,17 +28,21 @@ def process_dataset(config_manager):
     )
 
     def preprocess_function(examples):
-        return tokenizer(
+        # 토큰화 결과 얻기
+        tokenized = tokenizer(
             examples[data_config['text_column']],
             padding='max_length',
             truncation=True,
-            max_length=data_config['max_length'],
-            return_tensors='pt'
+            max_length=data_config['max_length']
         )
+        
+        # 원본 레이블 유지
+        tokenized['label'] = examples[data_config['label_column']]
+        
+        return tokenized
 
     logger.info("데이터셋 전처리 중...")
     return dataset.map(
         preprocess_function,
-        batched=True,
-        remove_columns=dataset["train"].column_names
+        batched=True
     )
