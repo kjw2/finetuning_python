@@ -1,0 +1,5 @@
+컬럼 이름: ['text', 'label']
+
+첫 번째 샘플:
+text: I rented I AM CURIOUS-YELLOW from my video store because of all the controversy that surrounded it when it was first released in 1967. I also heard that at first it was seized by U.S. customs if it ev...
+label: 0

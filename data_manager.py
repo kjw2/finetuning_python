@@ -68,7 +68,10 @@ class TextDataset(Dataset):
                 - attention_mask: 어텐션 마스크 텐서
                 - labels: 레이블 텐서
         """
-        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        item = {}
+        for key, val in self.encodings.items():
+            if val is not None:
+                item[key] = torch.tensor(val[idx])
         item['labels'] = torch.tensor(self.labels[idx])
         return item
 
@@ -178,6 +181,12 @@ class DataManager:
                 cache_dir=self.config.get('dataset_cache_dir', './datasets')
             )
             
+            # 데이터셋 컬럼 이름 로깅
+            logger.info(f"데이터셋 컬럼 이름: {dataset.column_names}")
+            # 첫 번째 샘플 로깅
+            if len(dataset) > 0:
+                logger.info(f"첫 번째 샘플 키: {list(dataset[0].keys())}")
+            
             # 데이터셋 통계 로깅
             self.validator.log_data_statistics(dataset)
             
@@ -221,11 +230,14 @@ class DataManager:
                 # 토큰화 수행
                 tokenized = self.tokenizer(
                     examples[self.text_column],
-                    padding=True,  # 동적 패딩 사용
-                    truncation=True,
+                    padding='max_length',  # 최대 길이에 맞춰 패딩
+                    truncation=True,       # 최대 길이에 맞춰 잘라내기
                     max_length=self.max_length,
-                    return_tensors=None  # 배치 처리를 위해 리스트 형태 반환
+                    return_tensors=None    # 배치 처리를 위해 리스트 형태 반환
                 )
+                
+                # 원본 텍스트 명시적으로 유지
+                tokenized['original_text'] = examples[self.text_column]
                 
                 try:
                     # 토큰화된 데이터 검증
@@ -235,27 +247,22 @@ class DataManager:
                 
                 return tokenized
             
-            # 배치 크기 조정을 통한 토큰화
-            # 레이블 컬럼을 제외한 컬럼만 제거
-            columns_to_remove = [col for col in dataset.column_names if col != self.label_column]
-            
+            # 토큰화 수행 (원본 컬럼 유지)
             tokenized_dataset = dataset.map(
                 tokenize_and_validate,
                 batched=True,
                 batch_size=100,  # 작은 배치 크기로 처리
-                desc="토큰화 중...",
-                remove_columns=columns_to_remove  # 레이블 컬럼은 유지
+                desc="토큰화 중..."
+                # remove_columns 매개변수 제거 - 모든 원본 컬럼 유지
             )
-            
-            # 필요한 키만 선택
-            tokenized_dict = {
-                'input_ids': tokenized_dataset['input_ids'],
-                'attention_mask': tokenized_dataset['attention_mask']
-            }
             
             # DataLoader 생성
             dataset_tensor = TextDataset(
-                tokenized_dict,
+                {
+                    'input_ids': tokenized_dataset['input_ids'],
+                    'attention_mask': tokenized_dataset['attention_mask'],
+                    'token_type_ids': tokenized_dataset['token_type_ids'] if 'token_type_ids' in tokenized_dataset.column_names else None
+                },
                 tokenized_dataset[self.label_column]
             )
             

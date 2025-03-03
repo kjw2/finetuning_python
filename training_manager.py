@@ -6,6 +6,7 @@ from transformers import PreTrainedModel, get_linear_schedule_with_warmup, AdamW
 from tqdm import tqdm
 from memory_utils import MemoryManager
 from exceptions import FineTuningError
+import gc
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class TrainingManager:
             optimizer = self._setup_optimizer()
             
             # 학습 스케줄러
-            scheduler = self._setup_scheduler(train_dataloader)
+            scheduler = self._setup_scheduler(optimizer, train_dataloader)
             
             # 학습 루프
             self.model.train()
@@ -129,11 +130,19 @@ class TrainingManager:
             weight_decay=self.weight_decay
         )
     
-    def _setup_scheduler(self, train_dataloader: DataLoader):
-        """학습 스케줄러 설정"""
+    def _setup_scheduler(self, optimizer: AdamW, train_dataloader: DataLoader):
+        """학습 스케줄러 설정
+        
+        Args:
+            optimizer: 사용할 옵티마이저 인스턴스
+            train_dataloader: 학습 데이터 로더
+            
+        Returns:
+            학습률 스케줄러
+        """
         total_steps = len(train_dataloader) * self.epochs
         return get_linear_schedule_with_warmup(
-            self._setup_optimizer(),
+            optimizer,
             num_warmup_steps=self.warmup_steps,
             num_training_steps=total_steps
         )
@@ -186,23 +195,48 @@ class TrainingManager:
         Returns:
             float: 배치 손실값
         """
-        # 데이터를 GPU로 이동
-        batch = {k: v.to(self.device) for k, v in batch.items()}
-        
-        # 혼합 정밀도 컨텍스트에서 순전파
-        with self.memory_manager.autocast_context():
-            outputs = self.model(**batch)
-            loss = outputs.loss / self.memory_manager.gradient_accumulation_steps
-        
-        # 역전파
-        self.memory_manager.backward_pass(loss, batch_idx)
-        
-        # 그래디언트 누적이 완료되면 옵티마이저 스텝
-        if not self.memory_manager.should_accumulate_gradient(batch_idx):
-            self.memory_manager.optimizer_step(optimizer, self.model, self.max_grad_norm)
-            scheduler.step()
-        
-        return loss.item()
+        try:
+            # 배치 데이터 로깅
+            logger.debug(f"배치 {batch_idx} 키: {list(batch.keys())}")
+            for k, v in batch.items():
+                logger.debug(f"배치 {batch_idx} {k} 형태: {v.shape}, 타입: {v.dtype}")
+            
+            # 데이터를 GPU로 이동
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+            
+            # 혼합 정밀도 컨텍스트에서 순전파
+            with self.memory_manager.autocast_context():
+                outputs = self.model(**batch)
+                loss = outputs.loss / self.memory_manager.gradient_accumulation_steps
+            
+            # 역전파
+            self.memory_manager.backward_pass(loss, batch_idx)
+            
+            # 그래디언트 누적이 완료되면 옵티마이저 스텝
+            if not self.memory_manager.should_accumulate_gradient(batch_idx):
+                # 옵티마이저 스텝 먼저 수행
+                self.memory_manager.optimizer_step(optimizer, self.model, self.max_grad_norm)
+                # 그 다음 스케줄러 스텝 수행
+                scheduler.step()
+            
+            return loss.item()
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower():
+                logger.error(f"GPU 메모리 부족 오류: {str(e)}")
+                # 메모리 비우기 시도
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    gc.collect()
+            else:
+                logger.error(f"런타임 오류 발생: {str(e)}")
+                logger.error(f"배치 키: {list(batch.keys())}")
+                for k, v in batch.items():
+                    if isinstance(v, torch.Tensor):
+                        logger.error(f"{k} 형태: {v.shape}, 타입: {v.dtype}")
+            raise
+        except Exception as e:
+            logger.error(f"예상치 못한 오류 발생: {str(e)}")
+            raise
     
     def _evaluate_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, int]:
         """배치 평가

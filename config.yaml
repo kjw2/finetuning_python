@@ -11,8 +11,8 @@ data:
   dataset_cache_dir: "./datasets/temp_cache"
   text_column: "text"
   label_column: "label"
-  max_length: 512
-  batch_size: 16
+  max_length: 256
+  batch_size: 8
 
 # 학습 설정
 training:
@@ -25,9 +25,9 @@ training:
 
 # 메모리 관리 설정
 memory:
-  gradient_accumulation_steps: 4  # 그래디언트 누적 스텝 수
-  max_gpu_memory_usage: 0.95      # 최대 GPU 메모리 사용률 (0~1)
-  empty_cache_freq: 50            # CUDA 캐시 비우기 빈도 (배치 단위)
+  gradient_accumulation_steps: 8  # 그래디언트 누적 스텝 수
+  max_gpu_memory_usage: 0.8      # 최대 GPU 메모리 사용률 (0~1)
+  empty_cache_freq: 10            # CUDA 캐시 비우기 빈도 (배치 단위)
   mixed_precision: true           # 혼합 정밀도 학습 사용 여부
   optimize_memory_usage: true     # 메모리 최적화 사용 여부
 
